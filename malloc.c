@@ -1,31 +1,37 @@
+#include "malloc.h"
 #include <stddef.h>
 #include <unistd.h>
 
-typedef struct {
-  size_t size;
-  struct block_header_t *next;
-  char free;
-} block_header_t;
+#define CHUNK_SIZE 4096
 
-void *malloc(size_t size) {
-  if (size == 0) {
-    return NULL;
+static void *chunk_start = NULL;
+static void *chunk_brk = NULL;
+static void *current_brk = NULL;
+
+void *c_malloc(size_t size) {
+
+  size_t total_size = sizeof(block_header_t) + size;
+  if (!current_brk || current_brk + total_size > chunk_brk) {
+    chunk_start = sbrk(CHUNK_SIZE);
+    if (chunk_start == (void *)-1) {
+      return NULL;
+    }
+
+    chunk_brk = chunk_start + CHUNK_SIZE;
+    current_brk = chunk_start;
   }
 
-  size_t total_size = size + sizeof(block_header_t);
-
-  block_header_t *header = sbrk(total_size);
-  if (header == (void *)-1) {
-    return NULL;
-  }
+  block_header_t *header = (block_header_t *)current_brk;
 
   header->size = size;
   header->next = NULL;
   header->free = 0;
+
+  current_brk += total_size;
   return (void *)(header + 1);
 }
 
-void free(void *ptr) {
+void c_free(void *ptr) {
   if (!ptr) {
     return;
   }
